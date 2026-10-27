@@ -41,4 +41,18 @@ After integration runs, build release artifacts **without** `-PintegrationTests`
 
 ## Release preparation
 
-Update `version`, add matching notes under `changelogs/`, run unit and integration checks, then build both loaders and `distribution`. The ZIP contains playable mods, sources, guides and version history. It excludes dependencies, test fixtures, caches and development instances. Publication is a separate action.
+Update `version`, add matching notes under `changelogs/`, run unit and integration checks, then build both loaders and `distribution`. The ZIP contains playable mods, sources, guides and version history. It excludes dependencies, test fixtures, caches and development instances.
+
+`.github/workflows/release.yml` builds pull requests without publishing. A successful push to `main`, a matching `v<version>` tag, or a manual run on `main` publishes through GitHub Releases. The workflow uses its built-in `GITHUB_TOKEN` with `contents: write` only in the publishing job; no personal token is needed. The tag must match `version` in `gradle.properties`, and the corresponding release notes are required.
+
+With the same version, only that release's assets and tag are replaced with the tested commit. Changing the version creates a separate release and preserves previous versions. All six assets (Fabric/NeoForge playable and sources JARs, distribution ZIP, SHA-256 checksums) are uploaded to a draft and checked before publication. Older stable versions and prereleases do not replace a newer stable release as latest. Serialized publishing and remote-ref checks prevent stale builds from replacing newer work. A failed upload remains a draft for the next successful run to complete.
+
+The release scripts use Python 3.11+ from the GitHub runner. To verify their behavior locally without network writes:
+
+```powershell
+python -m unittest discover -s scripts/tests -v
+python scripts/release.py validate
+python scripts/release.py stage
+```
+
+Staging copies only the current version's exact file names into `build/release/` and records their checksums and tested commit. Local uncommitted staging is marked dirty and cannot be published by the script. The publish job downloads these exact build outputs; it does not rebuild them with write permissions. The script preserves version-specific notes as the release description.

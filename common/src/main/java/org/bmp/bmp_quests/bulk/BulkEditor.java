@@ -93,6 +93,7 @@ public final class BulkEditor {
                     : file.getTranslationManager().getStringTranslation(object, locale, key).orElse("");
             String result = mode.apply(old, text, find);
             require(result.length() <= 32767, "limit");
+            require(key != TranslationKey.TITLE || !result.isBlank(), "empty_title");
             String fullKey = BulkTransaction.prefix(object.getObjectType(), object.id) + key.getName();
             if (key.isListVal()) {
                 ListTag list = new ListTag();

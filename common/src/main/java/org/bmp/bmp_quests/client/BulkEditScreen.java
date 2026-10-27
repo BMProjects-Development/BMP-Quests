@@ -125,20 +125,29 @@ public final class BulkEditScreen extends EditConfigScreen {
     private static void text(ConfigGroup group, CompoundTag plan, String key) {
         var apply = group.addBool("apply", false, v -> {}, false).setNameKey("bmpquests.apply_field");
         var mode = group.addEnum("mode", TextOperation.REPLACE, v -> {}, names(TextOperation.REPLACE, TextOperation.values(), "bmpquests.text_mode")).setNameKey("bmpquests.text.mode");
+        mode.setCanEdit(apply::getValue);
         var find = group.addString("find", "", v -> {}, "").setNameKey("bmpquests.text.find");
-        group.add("value", new ListConfig<String, StringConfig>(new StringConfig()) {
-            @Override public void onClicked(Widget widget, MouseButton button, ConfigCallback callback) {
-                new MultilineTextEditorScreen(Component.translatable("bmpquests.field." + key), this, callback).openGui();
-            }
-        }, List.of(), lines -> {
+        find.setCanEdit(() -> apply.getValue() && mode.getValue() == TextOperation.FIND_REPLACE);
+        Consumer<String> saveText = value -> {
             if (apply.getValue()) {
                 CompoundTag operation = new CompoundTag();
                 operation.putString("mode", mode.getValue().name());
                 operation.putString("find", find.getValue());
-                operation.putString("text", String.join("\n", lines));
+                operation.putString("text", value);
                 section(plan, "text").put(key, operation);
             } else section(plan, "text").remove(key);
-        }, List.of()).setNameKey("bmpquests.text.value");
+        };
+        if (key.equals("description")) {
+            group.add("value", new ListConfig<String, StringConfig>(new StringConfig()) {
+                @Override public void onClicked(Widget widget, MouseButton button, ConfigCallback callback) {
+                    new MultilineTextEditorScreen(Component.translatable("bmpquests.field.description"), this, callback).openGui();
+                }
+            }, List.of(), lines -> saveText.accept(String.join("\n", lines)), List.of())
+                    .setNameKey("bmpquests.text.value").setCanEdit(apply::getValue);
+        } else {
+            group.addString("value", "", saveText, "").setNameKey("bmpquests.text." + key + "_value")
+                    .setCanEdit(apply::getValue);
+        }
     }
 
     private static void addSelectionStates(ConfigGroup root, List<Quest> quests) {
@@ -174,6 +183,11 @@ public final class BulkEditScreen extends EditConfigScreen {
         CompoundTag request = plan.copy();
         if (!request.getCompound("rewards").contains("action")) request.remove("rewards");
         if (!request.getCompound("dependencies").contains("action")) request.remove("dependencies");
+        CompoundTag title = request.getCompound("text").getCompound("title");
+        if (title.getString("mode").equals(TextOperation.REPLACE.name()) && title.getString("text").isBlank()) {
+            QuestScreen.displayError(Component.translatable("bmpquests.error.empty_title"));
+            return;
+        }
         if (request.getCompound("properties").isEmpty() && request.getCompound("text").isEmpty()
                 && !request.contains("rewards") && !request.contains("dependencies")) {
             QuestScreen.displayError(Component.translatable("bmpquests.error.no_changes"));

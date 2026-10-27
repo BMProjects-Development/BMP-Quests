@@ -36,6 +36,8 @@ The native configuration editor groups options under General, Text, Rewards, Dep
 
 For example, to prefix quest titles with `[Chapter 2] `, expand Text → Title, enable the field, select Add Prefix and enter the text. To append a description paragraph, use Text → Description → Append and enter multiple lines in the original multiline editor. Find and Replace uses literal text rather than regular expressions. Only the current editing locale changes; other languages remain intact.
 
+Titles and subtitles use a normal text field with a visible preview of the entered value. Enabling Title alone does not provide a new name: enter it under **New title / operation text** before applying. A bulk operation that would produce any empty or whitespace-only title is rejected entirely.
+
 Choose an operation in Rewards or Dependencies to enable that category. Add rewards through **Configure reward to add**, which opens FTB's own reward type picker and editor. Copying rewards replaces the target sets, skips the source quest if selected, and creates independent reward IDs. Remove-type affects only the chosen reward type. Auto-claim uses the existing FTB reward setting.
 
 Dependencies can be added, removed or cleared. The server checks the whole resulting graph, including references through chapters and tasks. Self-references and cycles reject the batch before changes are applied.

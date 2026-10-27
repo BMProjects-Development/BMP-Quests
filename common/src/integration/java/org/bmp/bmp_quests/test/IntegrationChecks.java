@@ -46,6 +46,7 @@ public final class IntegrationChecks {
                 file.getTranslationManager().addTranslation(quest, "ru_ru", TranslationKey.QUEST_DESC, List.of("§aСтрока " + i, "", "End"));
             }
             Quest a = quests.get(0), b = quests.get(1);
+            checkTitleEdits(file, quests);
             TeamData team = new TeamData(UUID.randomUUID(), file);
             file.addData(team, true);
             ChapterImage image = new ChapterImage(file.newID(), chapter); image.onCreated();
@@ -195,5 +196,35 @@ public final class IntegrationChecks {
         } finally {
             file.server.halt(false);
         }
+    }
+
+    private static void checkTitleEdits(ServerQuestFile file, List<Quest> quests) {
+        // Enabling Title and accepting the empty draft must never erase the selection.
+        CompoundTag batch = plan(quests), text = new CompoundTag(), operation = new CompoundTag();
+        operation.putString("mode", "REPLACE"); operation.putString("text", "");
+        text.put("title", operation); batch.put("text", text);
+        reject(file, batch, "empty title replacement rejected");
+        operation.putString("text", " \t\n");
+        reject(file, batch, "whitespace-only title rejected");
+        operation.remove("text");
+        reject(file, batch, "missing title input rejected");
+        for (int i = 0; i < quests.size(); i++) {
+            check(file.getTranslationManager().getStringTranslation(quests.get(i), "ru_ru", TranslationKey.TITLE).orElseThrow().equals("Русский " + i), "invalid title request preserves original " + i);
+        }
+        operation.putString("text", "Новое общее название");
+        var replace = BulkEditor.prepare(file, batch);
+        check(replace.apply(file), "replace all titles");
+        for (Quest quest : quests) {
+            check(file.getTranslationManager().getStringTranslation(quest, "ru_ru", TranslationKey.TITLE).orElseThrow().equals("Новое общее название"), "replacement text saved");
+        }
+        check(replace.applyUndo(file), "title replacement undo");
+        for (int i = 0; i < quests.size(); i++) {
+            check(file.getTranslationManager().getStringTranslation(quests.get(i), "ru_ru", TranslationKey.TITLE).orElseThrow().equals("Русский " + i), "undo restores original title " + i);
+            check(file.getTranslationManager().getStringTranslation(quests.get(i), "en_us", TranslationKey.TITLE).orElseThrow().equals("English " + i), "title replacement preserves other locale " + i);
+        }
+        // A replacement which erases just one title must reject the entire batch.
+        operation.putString("mode", "FIND_REPLACE"); operation.putString("find", "Русский 99"); operation.putString("text", "");
+        reject(file, batch, "find/replace cannot produce an empty title");
+        check(file.getTranslationManager().getStringTranslation(quests.get(0), "ru_ru", TranslationKey.TITLE).orElseThrow().equals("Русский 0"), "late validation leaves earlier quests unchanged");
     }
 }

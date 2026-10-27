@@ -85,5 +85,8 @@
   "bmpquests.error.missing": "An object or required selection is missing. Nothing was changed.",
   "bmpquests.error.cycle": "The operation creates a self-reference or a dependency cycle. Nothing was changed.",
   "bmpquests.error.empty_find": "Enter the text to find before applying Find and Replace.",
-  "bmpquests.error.no_changes": "Enable a field or choose an operation to apply changes."
+  "bmpquests.error.no_changes": "Enable a field or choose an operation to apply changes.",
+  "bmpquests.error.empty_title": "Enter a quest title. Bulk editing cannot produce empty titles; nothing was changed.",
+  "bmpquests.text.title_value": "New title / operation text",
+  "bmpquests.text.subtitle_value": "New subtitle / operation text"
 }

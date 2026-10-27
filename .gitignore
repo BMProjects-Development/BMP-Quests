@@ -1,0 +1,64 @@
+# Gradle caches and generated build/release files
+.gradle/
+.kotlin/
+.gradle-home/
+.gradle-user/
+**/build/
+out/
+bin/
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+/repo/
+
+# Local integration scenarios and data-generator caches (keep unit tests in Git)
+/src/gametest/
+/src/generated/resources/.cache/
+
+# Local Minecraft instances, test worlds and diagnostics
+/run/
+**/run/
+**/runs/
+/run-*/
+/logs/
+/crash-reports/
+/screenshots/
+*.log
+hs_err_pid*
+replay_pid*
+*.hprof
+*.jfr
+
+# IDE and machine-specific settings
+.idea/
+.vscode/
+.settings/
+.eclipse/
+.classpath
+.project
+*.iml
+*.ipr
+*.iws
+local.properties
+
+# Local tools, generated previews and agent workspace files
+/.tools/
+/output/
+/tmp/
+/temp/
+/.codex/
+/.codex-tmp/
+/.agents/
+
+# Local environment files and editor/OS leftovers
+.env
+.env.*
+!.env.example
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini

@@ -1,6 +1,35 @@
 plugins {
     // see https://fabricmc.net/develop/ for new versions
-    id 'fabric-loom' version '1.7-SNAPSHOT' apply false
+    id 'net.fabricmc.fabric-loom-remap' version '1.17.21' apply false
     // see https://projects.neoforged.net/neoforged/moddevgradle for new versions
-    id 'net.neoforged.moddev' version '0.1.110' apply false
+    id 'net.neoforged.moddev' version '2.0.148' apply false
+}
+
+tasks.register('verifyArtifacts') {
+    dependsOn ':fabric:remapJar', ':neoforge:jar'
+    doLast {
+        [project(':fabric').tasks.remapJar.archiveFile.get().asFile,
+         project(':neoforge').tasks.jar.archiveFile.get().asFile].each { artifact ->
+            new java.util.zip.ZipFile(artifact).withCloseable { zip ->
+                def entries = zip.entries().toList()*.name
+                assert !entries.any { it.contains('IntegrationMixin') || it.startsWith('org/bmp/bmp_quests/test/') }
+                assert !entries.any { it.startsWith('assets/ftbquests/') || it.startsWith('dev/ftb/') }
+                assert !zip.getInputStream(zip.getEntry('bmpquests.mixins.json')).getText('UTF-8').contains('IntegrationMixin')
+                ['en_us', 'ru_ru'].each { locale -> assert zip.getEntry("assets/bmpquests/lang/${locale}.json") != null }
+            }
+        }
+    }
+}
+
+tasks.register('distribution', Zip) {
+    dependsOn 'verifyArtifacts', ':common:test', ':fabric:sourcesJar', ':neoforge:sourcesJar'
+    archiveFileName = "bmpquests-${version}.zip"
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+    from(project(':fabric').tasks.named('remapJar')) { into 'mods' }
+    from(project(':neoforge').tasks.named('jar')) { into 'mods' }
+    from(project(':fabric').tasks.named('sourcesJar')) { into 'sources' }
+    from(project(':neoforge').tasks.named('sourcesJar')) { into 'sources' }
+    from('docs') { into 'docs' }
+    from('changelogs') { into 'changelogs' }
+    from('README.md', 'CONTRIBUTING.md', 'LICENSE.txt')
 }

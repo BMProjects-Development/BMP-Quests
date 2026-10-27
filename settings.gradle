@@ -10,8 +10,9 @@ pluginManagement {
                 }
             }
             filter {
-                includeGroup('net.fabricmc')
+                includeGroupAndSubgroups('net.fabricmc')
                 includeGroup('fabric-loom')
+                includeGroup('net.fabricmc.fabric-loom-remap')
             }
         }
         exclusiveContent {
@@ -48,4 +49,3 @@ rootProject.name = 'BMP-Quests'
 include('common')
 include('fabric')
 include('neoforge')
-include('forge')

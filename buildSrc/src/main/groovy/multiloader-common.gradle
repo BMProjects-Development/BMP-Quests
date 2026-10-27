@@ -14,6 +14,9 @@ java {
 }
 
 repositories {
+    maven { url = 'https://maven.ftb.dev/releases' }
+    maven { url = 'https://maven.architectury.dev' }
+    maven { url = 'https://maven.fabricmc.net' }
     mavenCentral()
     // https://docs.gradle.org/current/userguide/declaring_repositories.html#declaring_content_exclusively_found_in_one_repository
     exclusiveContent {
@@ -56,13 +59,13 @@ repositories {
 }
 
 sourcesJar {
-    from(rootProject.file('LICENSE')) {
+    from(rootProject.file('LICENSE.txt')) {
         rename { "${it}_${mod_name}" }
     }
 }
 
 jar {
-    from(rootProject.file('LICENSE')) {
+    from(rootProject.file('LICENSE.txt')) {
         rename { "${it}_${mod_name}" }
     }
 
@@ -88,19 +91,22 @@ processResources {
                        'mod_author'                   : mod_author,
                        'mod_id'                       : mod_id,
                        'license'                      : license,
-                       'description'                  : project.description,
+                       'description'                  : rootProject.property('description'),
                        'neoforge_version'             : neoforge_version,
                        'neoforge_loader_version_range': neoforge_loader_version_range,
                        "forge_version"                : forge_version,
                        "forge_loader_version_range"   : forge_loader_version_range,
                        'credits'                      : credits,
                        'java_version'                 : java_version]
+    expandProps.putAll([ftb_quests_version: ftb_quests_version, ftb_library_version: ftb_library_version,
+                        architectury_version: architectury_version])
 
     filesMatching(['pack.mcmeta', 'fabric.mod.json', 'META-INF/mods.toml', 'META-INF/neoforge.mods.toml', '*.mixins.json']) {
         expand expandProps
     }
     inputs.properties(expandProps)
 }
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8'; options.release = 21 }
 
 publishing {
     publications {

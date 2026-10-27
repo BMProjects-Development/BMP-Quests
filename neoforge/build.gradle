@@ -10,10 +10,6 @@ neoForge {
     if (at.exists()) {
         accessTransformers.add(at.absolutePath)
     }
-    parchment {
-        minecraftVersion = parchment_minecraft
-        mappingsVersion = parchment_version
-    }
     runs {
         configureEach {
             systemProperty('neoforge.enabledGameTestNamespaces', mod_id)
@@ -21,6 +17,10 @@ neoForge {
         }
         client {
             client()
+            if (project.hasProperty('visualTests')) {
+                programArgument '--quickPlaySingleplayer'
+                programArgument 'BMP-Tests'
+            }
         }
         data {
             data()
@@ -37,3 +37,9 @@ neoForge {
 }
 
 sourceSets.main.resources { srcDir 'src/generated/resources' }
+dependencies {
+    implementation "dev.ftb.mods:ftb-quests-neoforge:${ftb_quests_version}"
+    implementation "dev.ftb.mods:ftb-library-neoforge:${ftb_library_version}"
+    implementation "dev.ftb.mods:ftb-teams-neoforge:${ftb_teams_version}"
+    implementation "dev.architectury:architectury-neoforge:${architectury_version}"
+}

@@ -1,6 +1,19 @@
 plugins {
     id 'multiloader-common'
 }
+tasks.named('processResources').configure { inputs.property('integrationTests', rootProject.hasProperty('integrationTests')) }
+
+if (rootProject.hasProperty('integrationTests')) {
+    sourceSets.main.java.srcDir(rootProject.file('common/src/integration/java'))
+    tasks.named('processResources').configure {
+        doLast {
+            def config = destinationDir.toPath().resolve('bmpquests.mixins.json').toFile()
+            def parsed = new groovy.json.JsonSlurper().parse(config)
+            parsed.mixins.add('IntegrationMixin')
+            config.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(parsed))
+        }
+    }
+}
 
 configurations {
     commonJava {

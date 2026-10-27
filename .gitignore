@@ -43,6 +43,7 @@ local.properties
 
 # Local tools, generated previews and agent workspace files
 /.tools/
+/.research/
 /output/
 /tmp/
 /temp/

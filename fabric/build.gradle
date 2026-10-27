@@ -1,15 +1,19 @@
 plugins {
     id 'multiloader-loader'
-    id 'fabric-loom'
+    id 'net.fabricmc.fabric-loom-remap'
 }
+repositories { maven { url = 'https://maven.siphalor.de/' } }
 dependencies {
     minecraft "com.mojang:minecraft:${minecraft_version}"
     mappings loom.layered {
         officialMojangMappings()
-        parchment("org.parchmentmc.data:parchment-${parchment_minecraft}:${parchment_version}@zip")
     }
     modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
+    modImplementation "dev.ftb.mods:ftb-quests-fabric:${ftb_quests_version}"
+    modImplementation "dev.ftb.mods:ftb-library-fabric:${ftb_library_version}"
+    modImplementation "dev.ftb.mods:ftb-teams-fabric:${ftb_teams_version}"
+    modImplementation "dev.architectury:architectury-fabric:${architectury_version}"
 }
 
 loom {
@@ -17,15 +21,19 @@ loom {
     if (aw.exists()) {
         accessWidenerPath.set(aw)
     }
-    mixin {
-        defaultRefmapName.set("${mod_id}.refmap.json")
-    }
     runs {
         client {
             client()
             setConfigName('Fabric Client')
             ideConfigGenerated(true)
             runDir('runs/client')
+        }
+        if (project.hasProperty('multiplayerTests')) {
+            clientTwo {
+                client()
+                setConfigName('Fabric Second Test Client')
+                runDir('runs/client-two')
+            }
         }
         server {
             server()

@@ -88,6 +88,8 @@ class FakeCurseForge:
         self.versions.extend([
             {"name": "1.21.1", "id": 110, "gameVersionTypeID": 1},
             {"name": "1.21.1", "id": 111, "gameVersionTypeID": 615},
+            {"name": "Client", "id": 300, "gameVersionTypeID": 888},
+            {"name": "Server", "id": 301, "gameVersionTypeID": 888},
         ])
 
     def game_versions(self):
@@ -96,7 +98,7 @@ class FakeCurseForge:
     def game_version_types(self):
         return [{"id": 777, "slug": "minecraft-1-21"}, {"id": 1, "slug": "bukkit"},
                 {"id": 615, "slug": "addons"}, {"id": 68441, "slug": "modloader"},
-                {"id": 778, "slug": "minecraft-1-20"}]
+                {"id": 778, "slug": "minecraft-1-20"}, {"id": 888, "slug": "environment"}]
 
     def upload(self, path, metadata):
         if self.fail_loader and self.fail_loader in path.name:
@@ -300,7 +302,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(len(curseforge.uploads), 2)
         for (path, data), (loader, version_id, suffix) in zip(curseforge.uploads, (("fabric", 101, "fabric"), ("neoforge", 102, "forge"))):
             self.assertEqual(path.name, f"bmpquests-{loader}-1.21.1-1.0.0.jar")
-            self.assertEqual(data["gameVersions"], [100, version_id])
+            self.assertEqual(data["gameVersions"], [100, version_id, 300, 301])
             self.assertEqual(data["releaseType"], "release")
             self.assertEqual(data["changelog"], (self.root / "changelogs/1.0.0.md").read_text())
             expected = {f"ftb-quests-{suffix}", f"ftb-library-{suffix}", f"ftb-teams-{suffix}", "architectury-api"}
@@ -489,7 +491,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertTrue(all(asset in api.rows[0]["assets"] for asset in original_assets))
         self.assertEqual(len(api.rows[0]["assets"]), 12)
         self.assertEqual(len(curseforge.uploads), 3)
-        self.assertEqual(curseforge.uploads[-1][1]["gameVersions"], [200, 101])
+        self.assertEqual(curseforge.uploads[-1][1]["gameVersions"], [200, 101, 300, 301])
         self.assertEqual(set(release.read_receipt(api.rows[0]["body"])["files"]),
                          {"1.21.1/fabric", "1.21.1/neoforge", "1.20.1/fabric"})
 
@@ -497,9 +499,10 @@ class ReleaseTests(unittest.TestCase):
         curseforge = FakeCurseForge()
         # The same loader name in another category must not affect the mod-loader selection.
         curseforge.versions.append({"name": "Fabric", "id": 112, "gameVersionTypeID": 615})
+        curseforge.versions.append({"name": "Server", "id": 114, "gameVersionTypeID": 615})
         ids = release.curseforge_version_ids(curseforge.game_versions(), curseforge.game_version_types(),
-                                            ["1.21.1", "Fabric", "NeoForge"])
-        self.assertEqual(ids, {"1.21.1": 100, "Fabric": 101, "NeoForge": 102})
+                                            ["1.21.1", "Fabric", "NeoForge", "Client", "Server"])
+        self.assertEqual(ids, {"1.21.1": 100, "Fabric": 101, "NeoForge": 102, "Client": 300, "Server": 301})
 
     def test_curseforge_missing_mod_version_cannot_fall_back_to_plugin_version(self):
         api, curseforge = self.curseforge_setup()
@@ -516,6 +519,13 @@ class ReleaseTests(unittest.TestCase):
         curseforge.versions.append({"name": "1.21.1", "id": 113, "gameVersionTypeID": 777})
         with self.assertRaisesRegex(ValueError, "matching IDs \\[100, 113\\]"):
             release.curseforge_version_ids(curseforge.versions, curseforge.game_version_types(), ["1.21.1"])
+
+    def test_curseforge_requires_environment_metadata_before_uploading(self):
+        api, curseforge = self.curseforge_setup()
+        curseforge.versions = [row for row in curseforge.versions if row["name"] != "Server"]
+        with self.assertRaisesRegex(ValueError, "environment version Server"):
+            self.upload_curseforge(api, curseforge)
+        self.assertEqual(curseforge.uploads, [])
 
 
 if __name__ == "__main__":

@@ -354,7 +354,8 @@ def curseforge_version_ids(versions, types, names):
     """Names repeat across mods, Bukkit plugins and addons; resolve within the correct type."""
     result = {}
     for name in names:
-        category = "modloader" if name in ("Fabric", "NeoForge") else "minecraft"
+        category = {"Fabric": "modloader", "NeoForge": "modloader",
+                    "Client": "environment", "Server": "environment"}.get(name, "minecraft")
         type_ids = {row["id"] for row in types if row["slug"].lower().startswith(category)}
         matches = {row["id"] for row in versions if row["name"] == name and row["gameVersionTypeID"] in type_ids}
         if len(matches) != 1:
@@ -386,7 +387,7 @@ def publish_curseforge(root=ROOT, api=None, curseforge=None, *, ref=None, sha=No
         print(f"CurseForge already has the selected tested files for {tag}, Minecraft {mc}")
         return
     versions = curseforge.game_versions()
-    names = [properties["minecraft_version"]] + [{"fabric": "Fabric", "neoforge": "NeoForge"}[p.parts[0]] for p in pending]
+    names = [mc] + [{"fabric": "Fabric", "neoforge": "NeoForge"}[p.parts[0]] for p in pending] + ["Client", "Server"]
     version_ids = curseforge_version_ids(versions, curseforge.game_version_types(), names)
     print(f"Resolved CurseForge versions: {json.dumps(version_ids, sort_keys=True)}", flush=True)
     for relative in pending:
@@ -401,7 +402,7 @@ def publish_curseforge(root=ROOT, api=None, curseforge=None, *, ref=None, sha=No
             "displayName": f"BMP Quests {properties['version']} - {label} - {mc}",
             "changelog": notes.read_text(encoding="utf-8-sig"), "changelogType": "markdown",
             "releaseType": "beta" if version_parts(properties["version"])[1] else "release",
-            "gameVersions": [version_ids[properties["minecraft_version"]], version_ids[label]],
+            "gameVersions": [version_ids[mc], version_ids[label], version_ids["Client"], version_ids["Server"]],
             "relations": {"projects": [{"slug": slug, "type": "requiredDependency"} for slug in dependencies]},
         }
         file_id = curseforge.upload(folder / relative.name, data)

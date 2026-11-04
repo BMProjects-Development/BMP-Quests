@@ -320,7 +320,13 @@ class CurseForge:
             with urlopen(request, timeout=120) as response:
                 return json.load(response)
         except HTTPError as error:
-            raise RuntimeError(f"CurseForge API {path} failed (HTTP {error.code})") from None
+            try:
+                details = json.loads(error.read(8192))
+                message = str(details.get("errorMessage") or details.get("message") or details)
+                message = message.replace(self.token, "[redacted]").replace("\r", " ").replace("\n", " ")[:1000]
+            except (ValueError, AttributeError):
+                message = str(error.reason)
+            raise RuntimeError(f"CurseForge API {path} failed (HTTP {error.code}): {message}") from None
 
     def game_versions(self):
         return self.request("game/versions")
@@ -382,6 +388,7 @@ def publish_curseforge(root=ROOT, api=None, curseforge=None, *, ref=None, sha=No
     versions = curseforge.game_versions()
     names = [properties["minecraft_version"]] + [{"fabric": "Fabric", "neoforge": "NeoForge"}[p.parts[0]] for p in pending]
     version_ids = curseforge_version_ids(versions, curseforge.game_version_types(), names)
+    print(f"Resolved CurseForge versions: {json.dumps(version_ids, sort_keys=True)}", flush=True)
     for relative in pending:
         check_current(api, ref, sha, default_branch)
         loader = relative.parts[0]

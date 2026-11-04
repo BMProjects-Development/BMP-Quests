@@ -10,6 +10,7 @@ from email.parser import BytesParser
 from email.policy import default
 from io import BytesIO
 from unittest.mock import patch
+from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlsplit
 from zipfile import ZipFile
 
@@ -380,6 +381,14 @@ class ReleaseTests(unittest.TestCase):
     def test_curseforge_api_requires_author_token(self):
         with self.assertRaisesRegex(ValueError, "CURSEFORGE_TOKEN"):
             release.CurseForge("")
+
+    def test_curseforge_api_reports_validation_error_without_author_token(self):
+        body = BytesIO(b'{"errorCode": 1009, "errorMessage": "Invalid project: test-author-token"}')
+        error = HTTPError("https://minecraft.curseforge.com/api/projects/1769230/upload-file", 400, "Bad Request", {}, body)
+        with patch.object(release, "urlopen", side_effect=error):
+            with self.assertRaisesRegex(RuntimeError, "Invalid project: \\[redacted\\]") as raised:
+                release.CurseForge("test-author-token").request("projects/1769230/upload-file")
+        self.assertNotIn("test-author-token", str(raised.exception))
 
     def test_curseforge_multipart_request_contains_original_file_and_metadata(self):
         self.prepare()

@@ -82,10 +82,20 @@ class FakeCurseForge:
     def __init__(self, fail_loader=None):
         self.uploads = []
         self.fail_loader = fail_loader
-        self.versions = [{"name": name, "id": id} for id, name in enumerate(("1.21.1", "Fabric", "NeoForge"), 100)]
+        self.versions = [{"name": name, "id": id, "gameVersionTypeID": 777 if name == "1.21.1" else 68441}
+                         for id, name in enumerate(("1.21.1", "Fabric", "NeoForge"), 100)]
+        self.versions.extend([
+            {"name": "1.21.1", "id": 110, "gameVersionTypeID": 1},
+            {"name": "1.21.1", "id": 111, "gameVersionTypeID": 615},
+        ])
 
     def game_versions(self):
         return self.versions
+
+    def game_version_types(self):
+        return [{"id": 777, "slug": "minecraft-1-21"}, {"id": 1, "slug": "bukkit"},
+                {"id": 615, "slug": "addons"}, {"id": 68441, "slug": "modloader"},
+                {"id": 778, "slug": "minecraft-1-20"}]
 
     def upload(self, path, metadata):
         if self.fail_loader and self.fail_loader in path.name:
@@ -362,7 +372,7 @@ class ReleaseTests(unittest.TestCase):
 
     def test_curseforge_unknown_loader_is_rejected_before_any_upload(self):
         api, curseforge = self.curseforge_setup()
-        curseforge.versions = curseforge.versions[:-1]
+        curseforge.versions = [row for row in curseforge.versions if row["name"] != "NeoForge"]
         with self.assertRaisesRegex(ValueError, "NeoForge"):
             self.upload_curseforge(api, curseforge)
         self.assertEqual(curseforge.uploads, [])
@@ -464,7 +474,7 @@ class ReleaseTests(unittest.TestCase):
         self.properties, _ = release.metadata(self.root, "")
         self.prepare()
         self.stage_loaders(("fabric",))
-        curseforge.versions.append({"name": "1.20.1", "id": 200})
+        curseforge.versions.append({"name": "1.20.1", "id": 200, "gameVersionTypeID": 778})
         self.publish(api)
         self.upload_curseforge(api, curseforge)
         self.assertTrue(all(asset in api.rows[0]["assets"] for asset in original_assets))
@@ -473,6 +483,30 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(curseforge.uploads[-1][1]["gameVersions"], [200, 101])
         self.assertEqual(set(release.read_receipt(api.rows[0]["body"])["files"]),
                          {"1.21.1/fabric", "1.21.1/neoforge", "1.20.1/fabric"})
+
+    def test_curseforge_version_names_are_resolved_in_their_categories(self):
+        curseforge = FakeCurseForge()
+        # The same loader name in another category must not affect the mod-loader selection.
+        curseforge.versions.append({"name": "Fabric", "id": 112, "gameVersionTypeID": 615})
+        ids = release.curseforge_version_ids(curseforge.game_versions(), curseforge.game_version_types(),
+                                            ["1.21.1", "Fabric", "NeoForge"])
+        self.assertEqual(ids, {"1.21.1": 100, "Fabric": 101, "NeoForge": 102})
+
+    def test_curseforge_missing_mod_version_cannot_fall_back_to_plugin_version(self):
+        api, curseforge = self.curseforge_setup()
+        curseforge.versions = [row for row in curseforge.versions if row["id"] != 100]
+        with self.assertRaisesRegex(ValueError, "minecraft version 1.21.1"):
+            self.upload_curseforge(api, curseforge)
+        self.assertEqual(curseforge.uploads, [])
+
+    def test_curseforge_duplicate_ids_are_safe_but_ambiguous_mod_versions_fail(self):
+        curseforge = FakeCurseForge()
+        curseforge.versions.append(deepcopy(curseforge.versions[0]))
+        self.assertEqual(release.curseforge_version_ids(curseforge.versions, curseforge.game_version_types(), ["1.21.1"]),
+                         {"1.21.1": 100})
+        curseforge.versions.append({"name": "1.21.1", "id": 113, "gameVersionTypeID": 777})
+        with self.assertRaisesRegex(ValueError, "matching IDs \\[100, 113\\]"):
+            release.curseforge_version_ids(curseforge.versions, curseforge.game_version_types(), ["1.21.1"])
 
 
 if __name__ == "__main__":

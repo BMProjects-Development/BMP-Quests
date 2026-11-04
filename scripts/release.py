@@ -325,6 +325,9 @@ class CurseForge:
     def game_versions(self):
         return self.request("game/versions")
 
+    def game_version_types(self):
+        return self.request("game/version-types")
+
     def upload(self, path, metadata):
         boundary = "bmpquests-" + uuid4().hex
         body = (
@@ -339,6 +342,19 @@ class CurseForge:
         if not isinstance(result.get("id"), int) or result["id"] <= 0:
             raise RuntimeError("CurseForge upload did not return a valid file ID")
         return result["id"]
+
+
+def curseforge_version_ids(versions, types, names):
+    """Names repeat across mods, Bukkit plugins and addons; resolve within the correct type."""
+    result = {}
+    for name in names:
+        category = "modloader" if name in ("Fabric", "NeoForge") else "minecraft"
+        type_ids = {row["id"] for row in types if row["slug"].lower().startswith(category)}
+        matches = {row["id"] for row in versions if row["name"] == name and row["gameVersionTypeID"] in type_ids}
+        if len(matches) != 1:
+            raise ValueError(f"Cannot uniquely resolve CurseForge {category} version {name}: matching IDs {sorted(matches)}")
+        result[name] = matches.pop()
+    return result
 
 
 def publish_curseforge(root=ROOT, api=None, curseforge=None, *, ref=None, sha=None):
@@ -365,12 +381,7 @@ def publish_curseforge(root=ROOT, api=None, curseforge=None, *, ref=None, sha=No
         return
     versions = curseforge.game_versions()
     names = [properties["minecraft_version"]] + [{"fabric": "Fabric", "neoforge": "NeoForge"}[p.parts[0]] for p in pending]
-    version_ids = {}
-    for name in names:
-        matches = [v["id"] for v in versions if v["name"] == name]
-        if len(matches) != 1:
-            raise ValueError(f"Cannot uniquely resolve CurseForge game version: {name}")
-        version_ids[name] = matches[0]
+    version_ids = curseforge_version_ids(versions, curseforge.game_version_types(), names)
     for relative in pending:
         check_current(api, ref, sha, default_branch)
         loader = relative.parts[0]

@@ -3,17 +3,46 @@ name: Build and release
 on:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      command:
+        description: 'Release command, e.g. release all or release 1.21.1 fabric; empty = build only'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
 
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      publish: ${{ steps.plan.outputs.publish }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Test release selection
+        run: python3 -m unittest discover -s scripts/tests -v
+      - name: Select build and release targets
+        id: plan
+        run: python3 scripts/release_plan.py plan
+
   build:
+    needs: plan
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      BUILD_DIRECTORY: ${{ matrix.directory }}
+      BUILD_MINECRAFT: ${{ matrix.minecraft }}
+      BUILD_LOADERS: ${{ toJSON(matrix.loaders) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -22,29 +51,29 @@ jobs:
         with:
           distribution: temurin
           java-version: |
-            21
-            25
+            ${{ matrix.toolchain }}
+            ${{ matrix.java }}
       - uses: gradle/actions/setup-gradle@07d1f8453baaff67fb503883367f8b13e6158a54 # v6
-      - name: Check release metadata and automation tests
-        run: |
-          python3 -m unittest discover -s scripts/tests -v
-          python3 scripts/release.py validate
-      - name: Build and verify both loaders
-        run: bash ./gradlew :common:test :fabric:build :neoforge:build verifyArtifacts distribution --console=plain
+      - name: Check release metadata
+        run: python3 scripts/release.py validate
+      - name: Build and verify selected loaders
+        run: python3 scripts/release_plan.py build
       - name: Prepare this version's deliverables
         run: python3 scripts/release.py stage
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: release-files
-          path: build/release/
+          name: release-files-${{ matrix.minecraft }}
+          path: ${{ matrix.directory }}/build/release/
           if-no-files-found: error
           retention-days: 14
 
   release:
-    needs: build
-    if: >-
-      github.event_name != 'pull_request' &&
-      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    needs: [plan, build]
+    if: needs.plan.outputs.publish == 'true'
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -52,15 +81,22 @@ jobs:
     concurrency:
       group: publish-${{ github.repository }}
       cancel-in-progress: false
+    env:
+      BUILD_DIRECTORY: ${{ matrix.directory }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
-          name: release-files
-          path: build/release/
-      - name: Publish the complete tested set
+          name: release-files-${{ matrix.minecraft }}
+          path: ${{ matrix.directory }}/build/release/
+      - name: Publish selected tested files to GitHub
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/release.py publish
+      - name: Publish selected tested files to CurseForge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
+        run: python3 scripts/release.py publish-curseforge

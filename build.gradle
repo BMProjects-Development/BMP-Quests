@@ -5,11 +5,18 @@ plugins {
     id 'net.neoforged.moddev' version '2.0.148' apply false
 }
 
+def releaseLoaders = providers.gradleProperty('releaseLoaders').orElse('fabric,neoforge').get().split(',').toList()
+if (!releaseLoaders || releaseLoaders.any { !(it in ['fabric', 'neoforge']) }) {
+    throw new GradleException('releaseLoaders must contain fabric and/or neoforge')
+}
+
 tasks.register('verifyArtifacts') {
-    dependsOn ':fabric:remapJar', ':neoforge:jar'
+    dependsOn releaseLoaders.collect { it == 'fabric' ? ':fabric:remapJar' : ':neoforge:jar' }
     doLast {
-        [project(':fabric').tasks.remapJar.archiveFile.get().asFile,
-         project(':neoforge').tasks.jar.archiveFile.get().asFile].each { artifact ->
+        releaseLoaders.collect { loader ->
+            def task = project(":${loader}").tasks.named(loader == 'fabric' ? 'remapJar' : 'jar').get()
+            task.archiveFile.get().asFile
+        }.each { artifact ->
             new java.util.zip.ZipFile(artifact).withCloseable { zip ->
                 def entries = zip.entries().toList()*.name
                 assert !entries.any { it.contains('IntegrationMixin') || it.startsWith('org/bmp/bmp_quests/test/') }

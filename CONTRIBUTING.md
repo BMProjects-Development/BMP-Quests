@@ -4,7 +4,7 @@ The shared implementation lives in `common`; `fabric` and `neoforge` provide loa
 
 ## Build
 
-Run Gradle with JDK 25. Minecraft and the addon use a Java 21 toolchain; install both JDKs so Gradle can discover them. Exact Minecraft, loader and FTB dependency versions are pinned in `gradle.properties`. FTB Quests is deliberately restricted to the inspected API version in the loader metadata.
+Run Gradle with JDK 25. Minecraft and the addon use a Java 21 toolchain; install both JDKs so Gradle can discover them. Exact build dependency versions are pinned in `gradle.properties`. Loader metadata accepts FTB Quests from the build's minimum version upward, without an upper bound. Check newer FTB Quests releases for API compatibility when updating the build dependencies.
 
 ```powershell
 ./gradlew.bat :common:test :fabric:build :neoforge:build
@@ -41,11 +41,24 @@ After integration runs, build release artifacts **without** `-PintegrationTests`
 
 ## Release preparation
 
-Update `version`, add matching notes under `changelogs/`, run unit and integration checks, then build both loaders and `distribution`. The ZIP contains playable mods, sources, guides and version history. It excludes dependencies, test fixtures, caches and development instances.
+Update `version`, add matching notes under `changelogs/`, then run the relevant unit and integration checks. Publishing is opt-in: ordinary commits and pull requests only build and verify supported targets. Pushing a tag does not trigger this workflow.
 
-`.github/workflows/release.yml` builds pull requests without publishing. A successful push to `main`, a matching `v<version>` tag, or a manual run on `main` publishes through GitHub Releases. The workflow uses its built-in `GITHUB_TOKEN` with `contents: write` only in the publishing job; no personal token is needed. The tag must match `version` in `gradle.properties`, and the corresponding release notes are required.
+Put **one command on its own line in the head commit message** pushed to `main`. It may be the commit title or a separate line in its body. Earlier commits in the same push are ignored. For a squash merge, put the command in the final squash commit message.
 
-With the same version, only that release's assets and tag are replaced with the tested commit. Changing the version creates a separate release and preserves previous versions. All six assets (Fabric/NeoForge playable and sources JARs, distribution ZIP, SHA-256 checksums) are uploaded to a draft and checked before publication. Older stable versions and prereleases do not replace a newer stable release as latest. Serialized publishing and remote-ref checks prevent stale builds from replacing newer work. A failed upload remains a draft for the next successful run to complete.
+| Command | Published builds |
+| --- | --- |
+| `release all` | Every configured Minecraft version and its supported loaders |
+| `release fabric` | Fabric across all configured Minecraft versions |
+| `release neoforge` | NeoForge across all configured Minecraft versions |
+| `release 1.21.1` | All supported loaders for Minecraft 1.21.1 |
+| `release 1.21.1 fabric` | Only Fabric for Minecraft 1.21.1 |
+| `release neoforge 1.21.1` | Only NeoForge for Minecraft 1.21.1 |
+
+Commands are case-insensitive. Unknown versions, unsupported combinations and multiple commands fail validation before publishing. A phrase such as `fix: release all` does not request a release. A manual **Run workflow** on `main` accepts the same command in its `command` input; leaving it empty only builds. Feature branches and pull requests cannot publish, even if their messages contain commands.
+
+The selected targets are built and tested before the release job runs. Each Minecraft/loader variant has four GitHub assets: playable JAR, sources JAR, a ZIP containing that variant with guides and changelog history, and its own SHA-256 checksums. The names include the loader and Minecraft version so a Fabric-only fix cannot replace a NeoForge ZIP or its checksums. `gradlew distribution` remains available for a local ZIP containing both loaders.
+
+With the same mod version, only the selected assets in that version's GitHub release are replaced; files for unselected loaders and Minecraft versions are retained. The version tag moves to the latest tested publishing commit. Changing the mod version creates a separate release and preserves previous releases. Selected assets are uploaded to a draft and checked before publication. Older stable versions and prereleases do not replace a newer stable release as latest. Serialized publishing and remote-ref checks reject stale builds. A failed upload leaves a draft that a retry can complete. GitHub uses its built-in `GITHUB_TOKEN` with `contents: write` only in the publishing job; no personal token is needed.
 
 The release scripts use Python 3.11+ from the GitHub runner. To verify their behavior locally without network writes:
 
@@ -56,3 +69,17 @@ python scripts/release.py stage
 ```
 
 Staging copies only the current version's exact file names into `build/release/` and records their checksums and tested commit. Local uncommitted staging is marked dirty and cannot be published by the script. The publish job downloads these exact build outputs; it does not rebuild them with write permissions. The script preserves version-specific notes as the release description.
+
+### Adding another Minecraft version
+
+`release-targets.json` is the source of the CI build matrix. Currently it lists only Minecraft 1.21.1 with Fabric and NeoForge. To add a port, place its independent Gradle project in a repository directory such as `versions/1.20.1`, then add an entry with `minecraft`, `directory`, its supported `loaders`, the Gradle runtime `java`, and the Minecraft Java `toolchain`. CI installs both JDKs and runs Gradle with the selected runtime. Do this after the port builds: adding a number alone does not port the mod. The target's `minecraft_version` must match its entry, and each directory and Minecraft version must be unique.
+
+Each project provides its own `gradlew`, `gradle.properties`, version-specific changelog, player guides, license, common tests, loader builds, and `verifyArtifacts` task supporting `-PreleaseLoaders=fabric,neoforge`. Build versions and dependencies remain in that project's Gradle properties. The central workflow and publishing scripts are reused. `release all` and loader-only commands automatically include newly configured targets; a version selector restricts the matrix to that project. CurseForge upload receipts also include the Minecraft version to keep ports independent.
+
+### CurseForge
+
+After the GitHub release is published, the same serialized job uploads only the selected tested playable JARs to [BMP Quests on CurseForge](https://www.curseforge.com/minecraft/mc-mods/bmp-quests) (project `1769230`). Sources, checksums and ZIPs stay on GitHub. Each CurseForge file receives its own loader and Minecraft version, the matching `changelogs/<version>.md`, and required dependencies. The Fabric file uses the Fabric FTB projects and Fabric API; the NeoForge file uses the Forge/NeoForge FTB projects. Both declare Architectury API. Prereleases are uploaded as beta files.
+
+One-time setup: create an **author API token** in [CurseForge API Tokens](https://authors.curseforge.com/account/api-tokens), then add it as the repository's `CURSEFORGE_TOKEN` Actions secret under **Settings → Secrets and variables → Actions**. A CurseForge Core API key is a different credential and cannot upload files. The workflow uses the [official Upload API](https://support.curseforge.com/support/solutions/articles/9000197321-curseforge-upload-api); no additional publishing service or Python package is needed. A missing token fails the CurseForge step with setup instructions while preserving the GitHub release.
+
+Before uploading, the script rechecks the tested commit, tag, artifact checksums and published GitHub release. Successful uploads are recorded by Minecraft version, loader, SHA-256 and CurseForge file ID in a hidden comment in that mod version's GitHub release description. Keep this comment when editing the release manually. Re-running the workflow preserves the receipts, skips identical accepted files and resumes a partial publication. Changed JARs are uploaded as new CurseForge files; previous files and other versions are preserved. If a network interruption occurs after CurseForge accepts a file but before its receipt is saved, check the CurseForge file list before retrying. Uploaded files still follow CurseForge's moderation process.

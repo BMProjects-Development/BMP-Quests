@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "minecraft": "1.21.1",
+      "directory": ".",
+      "java": "25",
+      "toolchain": "21",
+      "loaders": ["fabric", "neoforge"]
+    }
+  ]
+}

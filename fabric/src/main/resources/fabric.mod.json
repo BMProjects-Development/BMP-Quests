@@ -11,6 +11,7 @@
     "sources": "https://github.com/BMProjects-Development/BMP-Quests"
   },
   "license": "${license}",
+  "icon": "assets/${mod_id}/icon.png",
   "environment": "*",
   "entrypoints": {
     "main": [
@@ -26,7 +27,7 @@
     "fabric-api": "*",
     "minecraft": "${minecraft_version}",
     "java": ">=${java_version}",
-    "ftbquests": "=${ftb_quests_version}",
+    "ftbquests": ">=${ftb_quests_version}",
     "ftblibrary": ">=${ftb_library_version}",
     "architectury": ">=${architectury_version}"
   }
